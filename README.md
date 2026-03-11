@@ -1,36 +1,141 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Eunoia
 
-## Getting Started
+Eunoia is a youth-centered AI mental health support framework built with `Next.js App Router + TypeScript + Tailwind CSS`. This repository implements the v1 scaffold for:
 
-First, run the development server:
+- anonymous alias onboarding
+- empathetic chat with risk classification
+- crisis-script bypass for high-risk messages
+- mood tracking and guided coping exercises
+- RAG-style knowledge review and publishing
+- internal admin views for content, risk events, and resource editing
+
+## Stack
+
+- Next.js 16
+- React 19
+- Tailwind CSS 4
+- Zod validation
+- OpenAI-compatible provider adapter configured for DashScope / Qwen by default
+- PostgreSQL + pgvector schema included in `db/schema.sql`
+
+## Run locally
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Copy environment variables:
+
+```bash
+cp .env.example .env.local
+```
+
+3. Start the app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `OPENAI_API_KEY`: optional; if omitted, the chat provider falls back to a deterministic demo reply generator.
+- `OPENAI_BASE_URL`: defaults to `https://dashscope.aliyuncs.com/compatible-mode/v1`.
+- `OPENAI_MODEL`: defaults to `qwen3.5-plus-2026-02-15`. You can switch to `qwen3.5-flash` for a faster, cheaper prototype loop.
+- `DATABASE_URL`: reserved for PostgreSQL integration.
+- `NEXT_PUBLIC_APP_URL`: app base URL for deployment contexts.
+- `ADMIN_BASIC_AUTH_USER`: protects `/admin/*` and `/api/admin/*` in deployment.
+- `ADMIN_BASIC_AUTH_PASSWORD`: password paired with `ADMIN_BASIC_AUTH_USER`.
 
-## Learn More
+### DashScope quick start
 
-To learn more about Next.js, take a look at the following resources:
+Set the following in `.env.local`:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+OPENAI_API_KEY=your-dashscope-api-key
+OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+OPENAI_MODEL=qwen3.5-plus-2026-02-15
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+For a lighter-weight development setup, switch the model to:
 
-## Deploy on Vercel
+```bash
+OPENAI_MODEL=qwen3.5-flash
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## API security baseline
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Keep provider keys only in `.env.local` locally and in your deployment platform's environment-variable settings remotely.
+- Never place real secrets in `NEXT_PUBLIC_*` variables.
+- `/admin/*` and `/api/admin/*` are guarded by Basic Auth via `middleware.ts`.
+- `npm run security:scan` checks tracked files for likely hard-coded secrets.
+- `npm install` configures a `pre-push` hook so the scan runs automatically before pushes.
+
+Full rollout guidance is in `docs/api-security.md`.
+
+## Current persistence mode
+
+The app is implemented with a working in-memory store so the prototype can run immediately without a database.
+
+- Production database schema is already drafted in `db/schema.sql`.
+- High-risk events, mood check-ins, sessions, knowledge docs, and resources are all modeled.
+- RAG retrieval only searches `published` knowledge documents.
+
+## Core routes
+
+### User pages
+
+- `/onboarding`
+- `/chat`
+- `/mood`
+- `/skills`
+- `/help-now`
+
+### Admin pages
+
+- `/admin/content`
+- `/admin/risk`
+- `/admin/resources`
+
+### APIs
+
+- `POST /api/chat/session`
+- `POST /api/chat/message`
+- `POST /api/mood/check-in`
+- `GET /api/mood/check-in`
+- `GET /api/skills`
+- `GET /api/resources`
+- `POST /api/admin/content/import`
+- `POST /api/admin/content/publish`
+- `GET /api/admin/risk-events`
+- `PUT /api/admin/resources/:id`
+
+## Safety design
+
+- Eunoia is explicitly positioned as an AI support tool, not a clinician.
+- Messages are classified into `LOW`, `MODERATE`, `HIGH`, and `CRITICAL`.
+- `HIGH` and `CRITICAL` messages bypass freeform model generation and return a scripted crisis response.
+- Crisis resources remain visible in the user flow and are editable in the admin flow.
+
+## Prompt assets
+
+- System prompt: `src/lib/prompts.ts`
+- UI design prompt: `src/lib/prompts.ts`
+
+## Quality checks
+
+```bash
+npm run lint
+npm run test
+npm run build
+```
+
+## Suggested next implementation steps
+
+1. Replace the in-memory store with PostgreSQL repositories backed by `db/schema.sql`.
+2. Add authentication for the admin console.
+3. Add embedding generation and actual pgvector similarity search.
+4. Add region-aware resource localization and internationalization.

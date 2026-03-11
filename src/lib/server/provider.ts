@@ -1,0 +1,112 @@
+import OpenAI from "openai";
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+
+import { EUNOIA_SYSTEM_PROMPT } from "@/lib/prompts";
+import { serverEnv } from "@/lib/server/env";
+import type { ConversationTurn, KnowledgeDocument, Locale, RiskLevel } from "@/lib/types";
+
+interface GenerateReplyInput {
+  locale: Locale;
+  riskLevel: RiskLevel;
+  mode: "support" | "vent";
+  message: string;
+  conversation: ConversationTurn[];
+  knowledge: KnowledgeDocument[];
+}
+
+export interface ChatProvider {
+  generateReply(input: GenerateReplyInput): Promise<string>;
+}
+
+class OpenAICompatibleProvider implements ChatProvider {
+  private client: OpenAI | null;
+  private model: string;
+
+  constructor() {
+    const apiKey = serverEnv.openAiApiKey;
+    this.client = apiKey
+      ? new OpenAI({
+          apiKey,
+          baseURL: serverEnv.openAiBaseUrl,
+        })
+      : null;
+    this.model = serverEnv.openAiModel;
+  }
+
+  async generateReply(input: GenerateReplyInput) {
+    if (!this.client) {
+      return buildFallbackReply(input);
+    }
+
+    const knowledgeBlock =
+      input.knowledge.length > 0
+        ? `Grounded knowledge:\n${input.knowledge
+            .map((document) => `- ${document.title}: ${document.body}`)
+            .join("\n")}`
+        : "Grounded knowledge: none";
+
+    const conversation = input.conversation
+      .slice(-6)
+      .map((turn) => `${turn.role.toUpperCase()}: ${turn.message}`)
+      .join("\n");
+
+    const messages: ChatCompletionMessageParam[] = [
+      {
+        role: "system",
+        content: `${EUNOIA_SYSTEM_PROMPT}\n\nConversation mode: ${input.mode}\nRisk level: ${input.riskLevel}\nPreferred output language: ${input.locale === "zh" ? "Simplified Chinese" : "English"}\n${knowledgeBlock}`,
+      },
+      {
+        role: "user",
+        content: `Recent conversation:\n${conversation}\n\nLatest teen message:\n${input.message}`,
+      },
+    ];
+
+    const response = await this.client.chat.completions.create({
+      model: this.model,
+      messages,
+      temperature: 0.7,
+      max_completion_tokens: 220,
+    });
+
+    return response.choices[0]?.message?.content?.trim() || buildFallbackReply(input);
+  }
+}
+
+function buildFallbackReply(input: GenerateReplyInput) {
+  const snippets = input.knowledge.slice(0, 2).map((document) => document.title);
+  if (input.locale === "zh") {
+    const validation =
+      input.mode === "vent"
+        ? "你现在不需要立刻把一切都解决。"
+        : "你会觉得这一切很难受，是很可以理解的。";
+
+    const supportStep =
+      input.riskLevel === "MODERATE"
+        ? "先选一个很小的下一步，例如喝一口水、做两分钟呼吸练习，或者给一个信任的人发消息。"
+        : "如果你愿意，我们可以把事情放慢一点，一次只看一小部分。";
+
+    const grounded =
+      snippets.length > 0 ? ` 也许和你相关的支持主题有：${snippets.join("、")}。` : "";
+
+    return `${validation}${supportStep}${grounded}`.trim();
+  }
+
+  const validation =
+    input.mode === "vent"
+      ? "You do not have to solve everything in this moment."
+      : "It makes sense that this feels like a lot right now.";
+
+  const supportStep =
+    input.riskLevel === "MODERATE"
+      ? "Pick one tiny next step: a glass of water, a two-minute breathing reset, or texting one trusted person."
+      : "If it helps, we can slow this down together and focus on one part at a time.";
+
+  const grounded =
+    snippets.length > 0
+      ? ` A couple of support topics that may fit are ${snippets.join(" and ")}.`
+      : "";
+
+  return `${validation} ${supportStep}${grounded}`.trim();
+}
+
+export const chatProvider: ChatProvider = new OpenAICompatibleProvider();
