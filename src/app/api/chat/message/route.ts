@@ -25,6 +25,15 @@ export async function POST(request: Request) {
       );
     }
 
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        {
+          error: "Request body must be valid JSON.",
+        },
+        { status: 400 },
+      );
+    }
+
     if (error instanceof ProviderConfigurationError) {
       return NextResponse.json(
         {

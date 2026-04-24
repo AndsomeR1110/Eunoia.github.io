@@ -47,7 +47,7 @@ export const serverEnv = {
   openAiEnableThinking: env.OPENAI_ENABLE_THINKING
     ? env.OPENAI_ENABLE_THINKING === "true"
     : false,
-  openAiTimeoutMs: env.OPENAI_TIMEOUT_MS || 25000,
+  openAiTimeoutMs: env.OPENAI_TIMEOUT_MS || 60000,
   allowDemoMode: env.ALLOW_DEMO_MODE ? env.ALLOW_DEMO_MODE === "true" : true,
   appUrl: env.NEXT_PUBLIC_APP_URL,
   adminBasicAuthUser: env.ADMIN_BASIC_AUTH_USER,
