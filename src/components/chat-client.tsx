@@ -14,6 +14,8 @@ import { getMoodOptions } from "@/lib/i18n";
 import { formatDateTime } from "@/lib/utils";
 import type {
   ChatReply,
+  ChatReplyWithSession,
+  ChatStreamEvent,
   ConversationMode,
   ConversationTurn,
   Locale,
@@ -52,6 +54,7 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
   });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [streamingAssistantId, setStreamingAssistantId] = useState<string | null>(null);
   const [preMoodSaved, setPreMoodSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -136,6 +139,7 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
     };
 
     setLoading(true);
+    setStreamingAssistantId(null);
     setError(null);
     setState((current) => ({
       ...current,
@@ -144,7 +148,7 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
     setMessage("");
 
     try {
-      const response = await fetch("/api/chat/message", {
+      const response = await fetch("/api/chat/message/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -157,28 +161,81 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
       });
 
       if (!response.ok) {
-        throw new Error("Message failed");
+        throw new Error(await getRouteErrorMessage(response));
       }
 
-      const reply = (await response.json()) as ChatReply & { sessionId: string };
-      const assistantTurn: ConversationTurn = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        message: reply.assistantMessage,
-        createdAt: new Date().toISOString(),
-        responseMode: reply.responseMode,
-      };
+      if (!response.body) {
+        throw new Error("Streaming response body is missing.");
+      }
+
+      const assistantTurnId = `assistant-${Date.now()}`;
+      const assistantCreatedAt = new Date().toISOString();
+      setStreamingAssistantId(assistantTurnId);
+
+      const reply = await consumeChatStream(response.body, {
+        onMeta: (event) => {
+          setState((current) => ({
+            ...current,
+            sessionId: event.sessionId,
+            alias: event.alias,
+          }));
+          localStorage.setItem("eunoia-session-id", event.sessionId);
+        },
+        onChunk: (text) => {
+          setState((current) => {
+            const existingTurnIndex = current.turns.findIndex(
+              (turn) => turn.id === assistantTurnId,
+            );
+
+            if (existingTurnIndex === -1) {
+              return {
+                ...current,
+                turns: [
+                  ...current.turns,
+                  {
+                    id: assistantTurnId,
+                    role: "assistant",
+                    message: text,
+                    createdAt: assistantCreatedAt,
+                  },
+                ],
+              };
+            }
+
+            const turns = [...current.turns];
+            const currentTurn = turns[existingTurnIndex];
+            turns[existingTurnIndex] = {
+              ...currentTurn,
+              message: currentTurn.message + text,
+            };
+
+            return {
+              ...current,
+              turns,
+            };
+          });
+        },
+      });
 
       setState((current) => ({
         ...current,
         sessionId: reply.sessionId,
-        turns: [...current.turns, assistantTurn],
+        alias: reply.alias,
+        turns: upsertAssistantTurn(current.turns, {
+          id: assistantTurnId,
+          role: "assistant",
+          message: reply.assistantMessage,
+          createdAt: assistantCreatedAt,
+          responseMode: reply.responseMode,
+        }),
         lastReply: reply,
       }));
+      localStorage.setItem("eunoia-session-id", reply.sessionId);
     } catch {
       setError(copy.sendError);
     } finally {
       setLoading(false);
+      setStreamingAssistantId(null);
     }
   }
 
@@ -256,7 +313,9 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
           {state.turns.map((turn) => (
             <MessageBubble key={turn.id} turn={turn} alias={state.alias} locale={locale} />
           ))}
-          {loading ? <TypingIndicator /> : null}
+          {loading && !hasStreamingAssistantText(state.turns, streamingAssistantId) ? (
+            <TypingIndicator />
+          ) : null}
           <div ref={bottomRef} />
         </div>
       </div>
@@ -363,4 +422,104 @@ function TypingIndicator() {
       </div>
     </div>
   );
+}
+
+function upsertAssistantTurn(
+  turns: ConversationTurn[],
+  nextTurn: ConversationTurn,
+) {
+  const existingTurnIndex = turns.findIndex((turn) => turn.id === nextTurn.id);
+  if (existingTurnIndex === -1) {
+    return [...turns, nextTurn];
+  }
+
+  const updatedTurns = [...turns];
+  updatedTurns[existingTurnIndex] = {
+    ...updatedTurns[existingTurnIndex],
+    ...nextTurn,
+  };
+  return updatedTurns;
+}
+
+function hasStreamingAssistantText(
+  turns: ConversationTurn[],
+  streamingAssistantId: string | null,
+) {
+  if (!streamingAssistantId) {
+    return false;
+  }
+
+  return Boolean(
+    turns.find((turn) => turn.id === streamingAssistantId)?.message.trim(),
+  );
+}
+
+async function consumeChatStream(
+  stream: ReadableStream<Uint8Array>,
+  handlers: {
+    onMeta: (event: Extract<ChatStreamEvent, { type: "meta" }>) => void;
+    onChunk: (text: string) => void;
+  },
+) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalReply: ChatReplyWithSession | null = null;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) {
+          continue;
+        }
+
+        const event = JSON.parse(trimmedLine) as ChatStreamEvent;
+        if (event.type === "meta") {
+          handlers.onMeta(event);
+          continue;
+        }
+
+        if (event.type === "chunk") {
+          handlers.onChunk(event.text);
+          continue;
+        }
+
+        if (event.type === "done") {
+          finalReply = event.reply;
+          continue;
+        }
+
+        if (event.type === "error") {
+          throw new Error(event.error);
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (!finalReply) {
+    throw new Error("Streaming response ended before completion.");
+  }
+
+  return finalReply;
+}
+
+async function getRouteErrorMessage(response: Response) {
+  try {
+    const json = (await response.json()) as { error?: string };
+    return json.error || "Message failed";
+  } catch {
+    return "Message failed";
+  }
 }

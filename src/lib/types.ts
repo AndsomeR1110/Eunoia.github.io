@@ -112,3 +112,29 @@ export interface ChatReply {
   knowledgeSources: Pick<KnowledgeDocument, "id" | "title" | "sourceUrl">[];
   safetyDecision: SafetyDecision;
 }
+
+export type ChatReplyWithSession = ChatReply & {
+  sessionId: string;
+  alias: string;
+};
+
+export type ChatStreamEvent =
+  | {
+      type: "meta";
+      sessionId: string;
+      alias: string;
+      riskLevel: RiskLevel;
+      responseMode: ResponseMode;
+    }
+  | {
+      type: "chunk";
+      text: string;
+    }
+  | {
+      type: "done";
+      reply: ChatReplyWithSession;
+    }
+  | {
+      type: "error";
+      error: string;
+    };

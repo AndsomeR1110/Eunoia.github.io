@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type {
   ChatCompletion,
+  ChatCompletionChunk,
   ChatCompletionMessageParam,
 } from "openai/resources/chat/completions";
 
@@ -19,6 +20,7 @@ interface GenerateReplyInput {
 
 export interface ChatProvider {
   generateReply(input: GenerateReplyInput): Promise<string>;
+  streamReply(input: GenerateReplyInput): AsyncIterable<string>;
 }
 
 export class ProviderConfigurationError extends Error {
@@ -63,45 +65,10 @@ class OpenAICompatibleProvider implements ChatProvider {
       );
     }
 
-    const knowledgeBlock =
-      input.knowledge.length > 0
-        ? `Grounded knowledge:\n${input.knowledge
-            .map((document) => `- ${document.title}: ${document.body}`)
-            .join("\n")}`
-        : "Grounded knowledge: none";
-
-    const conversation = input.conversation
-      .slice(-6)
-      .map((turn) => `${turn.role.toUpperCase()}: ${turn.message}`)
-      .join("\n");
-
-    const messages: ChatCompletionMessageParam[] = [
-      {
-        role: "system",
-        content: `${EUNOIA_SYSTEM_PROMPT}\n\nConversation mode: ${input.mode}\nRisk level: ${input.riskLevel}\nPreferred output language: ${input.locale === "zh" ? "Simplified Chinese" : "English"}\n${knowledgeBlock}`,
-      },
-      {
-        role: "user",
-        content: `Recent conversation:\n${conversation}\n\nLatest teen message:\n${input.message}`,
-      },
-    ];
-
     try {
-      // DashScope accepts non-standard OpenAI-compatible fields like `extra_body`,
-      // but the upstream SDK types do not currently model them.
-      const requestBody = {
-        model: this.model,
-        messages,
-        temperature: 0.7,
-        max_tokens: 220,
-        extra_body: {
-          enable_thinking: serverEnv.openAiEnableThinking,
-        },
-      };
-
       const response = (await withTimeout(
         this.client.chat.completions.create(
-          requestBody as unknown as Parameters<
+          buildChatCompletionRequest(input) as unknown as Parameters<
             OpenAI["chat"]["completions"]["create"]
           >[0],
         ),
@@ -119,6 +86,105 @@ class OpenAICompatibleProvider implements ChatProvider {
       throw new ProviderRequestError(getProviderFailureMessage(error));
     }
   }
+
+  async *streamReply(input: GenerateReplyInput) {
+    if (!this.client) {
+      if (shouldUseDemoFallback()) {
+        yield buildFallbackReply(input);
+        return;
+      }
+
+      throw new ProviderConfigurationError(
+        "Missing OPENAI_API_KEY while demo mode is disabled.",
+      );
+    }
+
+    const requestBody = {
+      ...buildChatCompletionRequest(input),
+      stream: true,
+    };
+
+    const { signal, clearTimeoutHandle, didTimeout } = createTimeoutSignal(
+      this.timeoutMs,
+    );
+
+    let producedText = false;
+
+    try {
+      const stream = (await this.client.chat.completions.create(
+        requestBody as unknown as Parameters<
+          OpenAI["chat"]["completions"]["create"]
+        >[0],
+        { signal },
+      )) as AsyncIterable<ChatCompletionChunk>;
+
+      for await (const chunk of stream) {
+        const text = extractChunkText(chunk);
+        if (!text) {
+          continue;
+        }
+
+        producedText = true;
+        yield text;
+      }
+
+      if (!producedText) {
+        yield buildFallbackReply(input);
+      }
+    } catch (error) {
+      console.error("[Eunoia] provider stream failed", error);
+
+      if (shouldUseDemoFallback()) {
+        yield buildFallbackReply(input);
+        return;
+      }
+
+      throw new ProviderRequestError(
+        getProviderFailureMessage(
+          didTimeout() ? createTimeoutError(this.timeoutMs) : error,
+        ),
+      );
+    } finally {
+      clearTimeoutHandle();
+    }
+  }
+}
+
+function buildChatCompletionRequest(input: GenerateReplyInput) {
+  const knowledgeBlock =
+    input.knowledge.length > 0
+      ? `Grounded knowledge:\n${input.knowledge
+          .map((document) => `- ${document.title}: ${document.body}`)
+          .join("\n")}`
+      : "Grounded knowledge: none";
+
+  const conversation = input.conversation
+    .slice(-6)
+    .map((turn) => `${turn.role.toUpperCase()}: ${turn.message}`)
+    .join("\n");
+
+  const messages: ChatCompletionMessageParam[] = [
+    {
+      role: "system",
+      content: `${EUNOIA_SYSTEM_PROMPT}\n\nConversation mode: ${input.mode}\nRisk level: ${input.riskLevel}\nPreferred output language: ${input.locale === "zh" ? "Simplified Chinese" : "English"}\n${knowledgeBlock}`,
+    },
+    {
+      role: "user",
+      content: `Recent conversation:\n${conversation}\n\nLatest teen message:\n${input.message}`,
+    },
+  ];
+
+  // DashScope accepts non-standard OpenAI-compatible fields like `extra_body`,
+  // but the upstream SDK types do not currently model them.
+  return {
+    model: serverEnv.openAiModel,
+    messages,
+    temperature: 0.7,
+    max_tokens: 220,
+    extra_body: {
+      enable_thinking: serverEnv.openAiEnableThinking,
+    },
+  };
 }
 
 function shouldUseDemoFallback() {
@@ -130,7 +196,10 @@ function shouldUseDemoFallback() {
 }
 
 function getProviderFailureMessage(error: unknown) {
-  if (error instanceof Error && error.name === "TimeoutError") {
+  if (
+    (error instanceof Error && error.name === "TimeoutError") ||
+    (error instanceof Error && error.name === "AbortError")
+  ) {
     return "AI provider timed out.";
   }
 
@@ -155,6 +224,52 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
       clearTimeout(timeoutHandle);
     }
   }
+}
+
+function createTimeoutSignal(timeoutMs: number) {
+  const controller = new AbortController();
+  let didTimeout = false;
+  const timeoutHandle = setTimeout(() => {
+    didTimeout = true;
+    controller.abort(createTimeoutError(timeoutMs));
+  }, timeoutMs);
+
+  return {
+    signal: controller.signal,
+    didTimeout: () => didTimeout,
+    clearTimeoutHandle: () => clearTimeout(timeoutHandle),
+  };
+}
+
+function createTimeoutError(timeoutMs: number) {
+  const timeoutError = new Error(`Timed out after ${timeoutMs}ms`);
+  timeoutError.name = "TimeoutError";
+  return timeoutError;
+}
+
+function extractChunkText(chunk: ChatCompletionChunk) {
+  const delta = chunk.choices[0]?.delta?.content as unknown;
+  if (typeof delta === "string") {
+    return delta;
+  }
+
+  if (!Array.isArray(delta)) {
+    return "";
+  }
+
+  return delta
+    .map((part) => {
+      if (typeof part === "string") {
+        return part;
+      }
+
+      if ("text" in part && typeof part.text === "string") {
+        return part.text;
+      }
+
+      return "";
+    })
+    .join("");
 }
 
 function buildFallbackReply(input: GenerateReplyInput) {
