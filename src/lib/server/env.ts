@@ -5,6 +5,7 @@ const rawServerEnv = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
   OPENAI_MODEL: process.env.OPENAI_MODEL,
+  OPENAI_ENABLE_THINKING: process.env.OPENAI_ENABLE_THINKING,
   OPENAI_TIMEOUT_MS: process.env.OPENAI_TIMEOUT_MS,
   ALLOW_DEMO_MODE: process.env.ALLOW_DEMO_MODE,
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
@@ -17,6 +18,7 @@ const serverEnvSchema = z.object({
   OPENAI_API_KEY: z.string().trim().min(1).optional(),
   OPENAI_BASE_URL: z.string().trim().url().optional(),
   OPENAI_MODEL: z.string().trim().min(1).optional(),
+  OPENAI_ENABLE_THINKING: z.enum(["true", "false"]).optional(),
   OPENAI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).optional(),
   ALLOW_DEMO_MODE: z.enum(["true", "false"]).optional(),
   NEXT_PUBLIC_APP_URL: z.string().trim().url().optional(),
@@ -41,7 +43,10 @@ export const serverEnv = {
   openAiApiKey: env.OPENAI_API_KEY,
   openAiBaseUrl:
     env.OPENAI_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1",
-  openAiModel: env.OPENAI_MODEL || "qwen3.5-plus-2026-02-15",
+  openAiModel: env.OPENAI_MODEL || "qwen3.6-flash-2026-04-16",
+  openAiEnableThinking: env.OPENAI_ENABLE_THINKING
+    ? env.OPENAI_ENABLE_THINKING === "true"
+    : false,
   openAiTimeoutMs: env.OPENAI_TIMEOUT_MS || 25000,
   allowDemoMode: env.ALLOW_DEMO_MODE ? env.ALLOW_DEMO_MODE === "true" : true,
   appUrl: env.NEXT_PUBLIC_APP_URL,

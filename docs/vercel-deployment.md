@@ -9,7 +9,8 @@ Set these in the Vercel project settings:
 ```bash
 OPENAI_API_KEY=your-provider-key
 OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-OPENAI_MODEL=qwen3.5-plus-2026-02-15
+OPENAI_MODEL=qwen3.6-flash-2026-04-16
+OPENAI_ENABLE_THINKING=false
 OPENAI_TIMEOUT_MS=25000
 ALLOW_DEMO_MODE=false
 NEXT_PUBLIC_APP_URL=https://your-project.vercel.app
@@ -42,6 +43,7 @@ Expected behavior:
 For real deployments:
 
 - keep `ALLOW_DEMO_MODE=false`
+- keep `OPENAI_ENABLE_THINKING=false` for faster, cheaper user chat unless you intentionally want longer reasoning
 - use a real provider key
 - set strong admin credentials
 - never commit `.env.local` or production keys into Git

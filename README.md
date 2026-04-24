@@ -44,7 +44,8 @@ npm run dev
 
 - `OPENAI_API_KEY`: optional; if omitted, the chat provider falls back to a deterministic demo reply generator.
 - `OPENAI_BASE_URL`: defaults to `https://dashscope.aliyuncs.com/compatible-mode/v1`.
-- `OPENAI_MODEL`: defaults to `qwen3.5-plus-2026-02-15`. You can switch to `qwen3.5-flash` for a faster, cheaper prototype loop.
+- `OPENAI_MODEL`: defaults to `qwen3.6-flash-2026-04-16`. You can switch to `qwen3.6-plus` when you want a more capable but slower model.
+- `OPENAI_ENABLE_THINKING`: defaults to `false`. Keep it disabled for low-latency chat unless you explicitly want longer chain-of-thought style reasoning from compatible Qwen models.
 - `OPENAI_TIMEOUT_MS`: provider timeout in milliseconds. Default is `25000`.
 - `ALLOW_DEMO_MODE`: when `true`, Eunoia can fall back to demo replies if the provider is missing or temporarily failing. For production, set this to `false` if you want deployment to depend on a real model backend.
 - `DATABASE_URL`: reserved for PostgreSQL integration.
@@ -59,13 +60,14 @@ Set the following in `.env.local`:
 ```bash
 OPENAI_API_KEY=your-dashscope-api-key
 OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-OPENAI_MODEL=qwen3.5-plus-2026-02-15
+OPENAI_MODEL=qwen3.6-flash-2026-04-16
+OPENAI_ENABLE_THINKING=false
 ```
 
-For a lighter-weight development setup, switch the model to:
+If you want a stronger but slower model, switch to:
 
 ```bash
-OPENAI_MODEL=qwen3.5-flash
+OPENAI_MODEL=qwen3.6-plus
 ```
 
 ## Backend readiness for Vercel
@@ -87,7 +89,8 @@ For Vercel deployments:
 ```bash
 OPENAI_API_KEY=your-real-provider-key
 OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-OPENAI_MODEL=qwen3.5-plus-2026-02-15
+OPENAI_MODEL=qwen3.6-flash-2026-04-16
+OPENAI_ENABLE_THINKING=false
 OPENAI_TIMEOUT_MS=25000
 ALLOW_DEMO_MODE=false
 NEXT_PUBLIC_APP_URL=https://your-app.vercel.app

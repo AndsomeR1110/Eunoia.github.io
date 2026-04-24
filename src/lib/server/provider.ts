@@ -1,5 +1,8 @@
 import OpenAI from "openai";
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import type {
+  ChatCompletion,
+  ChatCompletionMessageParam,
+} from "openai/resources/chat/completions";
 
 import { EUNOIA_SYSTEM_PROMPT } from "@/lib/prompts";
 import { isProduction, serverEnv } from "@/lib/server/env";
@@ -84,15 +87,26 @@ class OpenAICompatibleProvider implements ChatProvider {
     ];
 
     try {
-      const response = await withTimeout(
-        this.client.chat.completions.create({
-          model: this.model,
-          messages,
-          temperature: 0.7,
-          max_completion_tokens: 220,
-        }),
+      // DashScope accepts non-standard OpenAI-compatible fields like `extra_body`,
+      // but the upstream SDK types do not currently model them.
+      const requestBody = {
+        model: this.model,
+        messages,
+        temperature: 0.7,
+        max_tokens: 220,
+        extra_body: {
+          enable_thinking: serverEnv.openAiEnableThinking,
+        },
+      };
+
+      const response = (await withTimeout(
+        this.client.chat.completions.create(
+          requestBody as unknown as Parameters<
+            OpenAI["chat"]["completions"]["create"]
+          >[0],
+        ),
         this.timeoutMs,
-      );
+      )) as ChatCompletion;
 
       return response.choices[0]?.message?.content?.trim() || buildFallbackReply(input);
     } catch (error) {
@@ -185,6 +199,7 @@ export function getProviderRuntimeStatus() {
     configured: Boolean(serverEnv.openAiApiKey),
     baseUrl: serverEnv.openAiBaseUrl,
     model: serverEnv.openAiModel,
+    thinkingEnabled: serverEnv.openAiEnableThinking,
     timeoutMs: serverEnv.openAiTimeoutMs,
     demoModeEnabled: shouldUseDemoFallback(),
   };
