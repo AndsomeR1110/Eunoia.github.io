@@ -58,6 +58,7 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
   const [preMoodSaved, setPreMoodSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const moodOptions = getMoodOptions(locale);
 
   const bootstrap = useEffectEvent(async () => {
@@ -128,6 +129,7 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
   async function send(nextMessage: string) {
     const trimmed = nextMessage.trim();
     if (!trimmed || !state.sessionId || loading) {
+      focusInput();
       return;
     }
 
@@ -146,6 +148,7 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
       turns: [...current.turns, optimisticTurn],
     }));
     setMessage("");
+    focusInput();
 
     try {
       const response = await fetch("/api/chat/message/stream", {
@@ -236,14 +239,25 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
     } finally {
       setLoading(false);
       setStreamingAssistantId(null);
+      focusInput();
     }
   }
 
   function handleInputKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+    if (event.nativeEvent.isComposing) {
+      return;
+    }
+
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       void send(message);
     }
+  }
+
+  function focusInput() {
+    requestAnimationFrame(() => {
+      textAreaRef.current?.focus();
+    });
   }
 
   return (
@@ -327,6 +341,7 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
           </label>
           <textarea
             id="chat-message"
+            ref={textAreaRef}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             onKeyDown={handleInputKeyDown}
