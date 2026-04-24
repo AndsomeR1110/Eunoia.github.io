@@ -1,152 +1,129 @@
 # Eunoia
 
-Eunoia is a youth-centered AI mental health support framework built with `Next.js App Router + TypeScript + Tailwind CSS`. This repository implements the v1 scaffold for:
+Eunoia is a youth-centered AI mental health support prototype built with Next.js. It focuses on a calm, chat-first experience with safety-aware response handling, mood tracking, coping exercises, and an internal admin surface for content and crisis resource management.
 
-- anonymous alias onboarding
-- empathetic chat with risk classification
-- crisis-script bypass for high-risk messages
-- mood tracking and guided coping exercises
-- RAG-style knowledge review and publishing
-- internal admin views for content, risk events, and resource editing
+Live deployment: [https://eunoia-kappa.vercel.app](https://eunoia-kappa.vercel.app)
 
-## Stack
+## What it does
 
-- Next.js 16
+- Anonymous onboarding with alias + conversation mode
+- ChatGPT-like chat UI with streaming assistant replies
+- Risk classification for each message
+- Crisis-script bypass for `HIGH` and `CRITICAL` risk messages
+- Mood check-ins and lightweight reflection history
+- Skills / coping exercise library
+- "Help now" resource directory
+- Admin pages for knowledge content, risk events, and resource editing
+
+## Current stack
+
+- Next.js 16 App Router
 - React 19
+- TypeScript
 - Tailwind CSS 4
-- Zod validation
-- OpenAI-compatible provider adapter configured for DashScope / Qwen by default
-- PostgreSQL + pgvector schema included in `db/schema.sql`
+- Zod
+- OpenAI-compatible provider adapter
+- Alibaba Cloud DashScope / Qwen
+- PostgreSQL + pgvector schema draft in `db/schema.sql`
+
+## AI provider
+
+The app is currently configured for Alibaba Cloud DashScope's OpenAI-compatible API.
+
+Default production-oriented model:
+
+```bash
+OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+OPENAI_MODEL=qwen3.6-flash-2026-04-16
+OPENAI_ENABLE_THINKING=false
+OPENAI_TIMEOUT_MS=60000
+```
+
+Why this default:
+
+- `qwen3.6-flash-2026-04-16` is faster and more practical for chat UX
+- `OPENAI_ENABLE_THINKING=false` reduces latency
+- `OPENAI_TIMEOUT_MS=60000` avoids premature timeouts on Vercel
+
+If you want a slower but stronger model:
+
+```bash
+OPENAI_MODEL=qwen3.6-plus
+```
 
 ## Run locally
 
-1. Install dependencies:
+1. Install dependencies
 
 ```bash
 npm install
 ```
 
-2. Copy environment variables:
+2. Create local environment variables
 
 ```bash
-cp .env.example .env.local
+copy .env.example .env.local
 ```
 
-3. Start the app:
-
-```bash
-npm run dev
-```
-
-4. Open [http://localhost:3000](http://localhost:3000).
-
-## Environment variables
-
-- `OPENAI_API_KEY`: optional; if omitted, the chat provider falls back to a deterministic demo reply generator.
-- `OPENAI_BASE_URL`: defaults to `https://dashscope.aliyuncs.com/compatible-mode/v1`.
-- `OPENAI_MODEL`: defaults to `qwen3.6-flash-2026-04-16`. You can switch to `qwen3.6-plus` when you want a more capable but slower model.
-- `OPENAI_ENABLE_THINKING`: defaults to `false`. Keep it disabled for low-latency chat unless you explicitly want longer chain-of-thought style reasoning from compatible Qwen models.
-- `OPENAI_TIMEOUT_MS`: provider timeout in milliseconds. Default is `25000`.
-- `ALLOW_DEMO_MODE`: when `true`, Eunoia can fall back to demo replies if the provider is missing or temporarily failing. For production, set this to `false` if you want deployment to depend on a real model backend.
-- `DATABASE_URL`: reserved for PostgreSQL integration.
-- `NEXT_PUBLIC_APP_URL`: app base URL for deployment contexts.
-- `ADMIN_BASIC_AUTH_USER`: protects `/admin/*` and `/api/admin/*` in deployment.
-- `ADMIN_BASIC_AUTH_PASSWORD`: password paired with `ADMIN_BASIC_AUTH_USER`.
-
-### DashScope quick start
-
-Set the following in `.env.local`:
+3. Fill in `.env.local`
 
 ```bash
 OPENAI_API_KEY=your-dashscope-api-key
 OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 OPENAI_MODEL=qwen3.6-flash-2026-04-16
 OPENAI_ENABLE_THINKING=false
-```
-
-If you want a stronger but slower model, switch to:
-
-```bash
-OPENAI_MODEL=qwen3.6-plus
-```
-
-## Backend readiness for Vercel
-
-The app already runs a server-side backend through Next.js route handlers under `src/app/api/*`.
-
-- `POST /api/chat/session`
-- `POST /api/chat/message`
-- `GET /api/health`
-- `POST /api/mood/check-in`
-- `GET /api/mood/check-in`
-- `GET /api/skills`
-- `GET /api/resources`
-
-### Recommended production settings
-
-For Vercel deployments:
-
-```bash
-OPENAI_API_KEY=your-real-provider-key
-OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-OPENAI_MODEL=qwen3.6-flash-2026-04-16
-OPENAI_ENABLE_THINKING=false
-OPENAI_TIMEOUT_MS=25000
+OPENAI_TIMEOUT_MS=60000
 ALLOW_DEMO_MODE=false
-NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
-ADMIN_BASIC_AUTH_USER=your-admin-user
-ADMIN_BASIC_AUTH_PASSWORD=your-strong-password
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-### Health check
-
-After deployment, verify backend connectivity at:
+4. Start the app
 
 ```bash
-GET /api/health
+npm run dev
 ```
 
-It returns whether the provider is configured, whether demo fallback is enabled, and the current runtime environment.
+5. Open [http://localhost:3000](http://localhost:3000)
 
-## API security baseline
+## Environment variables
 
-- Keep provider keys only in `.env.local` locally and in your deployment platform's environment-variable settings remotely.
-- Never place real secrets in `NEXT_PUBLIC_*` variables.
-- `/admin/*` and `/api/admin/*` are guarded by Basic Auth via `middleware.ts`.
-- `npm run security:scan` checks tracked files for likely hard-coded secrets.
-- `npm install` configures a `pre-push` hook so the scan runs automatically before pushes.
+- `OPENAI_API_KEY`: DashScope / OpenAI-compatible API key
+- `OPENAI_BASE_URL`: defaults to DashScope compatible endpoint
+- `OPENAI_MODEL`: defaults to `qwen3.6-flash-2026-04-16`
+- `OPENAI_ENABLE_THINKING`: defaults to `false`
+- `OPENAI_TIMEOUT_MS`: defaults to `60000`
+- `ALLOW_DEMO_MODE`: allow fallback demo replies when provider fails or is missing
+- `NEXT_PUBLIC_APP_URL`: deployed app URL
+- `DATABASE_URL`: reserved for future PostgreSQL integration
+- `ADMIN_BASIC_AUTH_USER`: Basic Auth username for `/admin/*`
+- `ADMIN_BASIC_AUTH_PASSWORD`: Basic Auth password for `/admin/*`
 
-Full rollout guidance is in `docs/api-security.md`.
+Example `.env.example` is included in the repo.
 
-## Current persistence mode
+## Main routes
 
-The app is implemented with a working in-memory store so the prototype can run immediately without a database.
+User pages:
 
-- Production database schema is already drafted in `db/schema.sql`.
-- High-risk events, mood check-ins, sessions, knowledge docs, and resources are all modeled.
-- RAG retrieval only searches `published` knowledge documents.
-
-## Core routes
-
-### User pages
-
+- `/`
 - `/onboarding`
 - `/chat`
 - `/mood`
 - `/skills`
 - `/help-now`
 
-### Admin pages
+Admin pages:
 
+- `/admin`
 - `/admin/content`
 - `/admin/risk`
 - `/admin/resources`
 
-### APIs
+## API routes
 
-- `GET /api/health`
 - `POST /api/chat/session`
 - `POST /api/chat/message`
+- `POST /api/chat/message/stream`
+- `GET /api/health`
 - `POST /api/mood/check-in`
 - `GET /api/mood/check-in`
 - `GET /api/skills`
@@ -156,17 +133,63 @@ The app is implemented with a working in-memory store so the prototype can run i
 - `GET /api/admin/risk-events`
 - `PUT /api/admin/resources/:id`
 
-## Safety design
+## Streaming chat
 
-- Eunoia is explicitly positioned as an AI support tool, not a clinician.
-- Messages are classified into `LOW`, `MODERATE`, `HIGH`, and `CRITICAL`.
-- `HIGH` and `CRITICAL` messages bypass freeform model generation and return a scripted crisis response.
-- Crisis resources remain visible in the user flow and are editable in the admin flow.
+The chat UI now uses a streaming backend route:
 
-## Prompt assets
+- server route: `src/app/api/chat/message/stream/route.ts`
+- client UI: `src/components/chat-client.tsx`
 
-- System prompt: `src/lib/prompts.ts`
-- UI design prompt: `src/lib/prompts.ts`
+Responses are streamed from the provider and rendered incrementally in the chat window, instead of waiting for the full assistant message to finish first.
+
+## Safety model
+
+- The product is positioned as an AI support tool, not a clinician
+- Messages are classified into `LOW`, `MODERATE`, `HIGH`, and `CRITICAL`
+- `HIGH` and `CRITICAL` messages bypass freeform model generation
+- Crisis resources remain available in the user flow
+- Risk events can be reviewed in the admin flow
+
+## Deployment on Vercel
+
+Recommended production settings:
+
+```bash
+OPENAI_API_KEY=your-real-provider-key
+OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+OPENAI_MODEL=qwen3.6-flash-2026-04-16
+OPENAI_ENABLE_THINKING=false
+OPENAI_TIMEOUT_MS=60000
+ALLOW_DEMO_MODE=false
+NEXT_PUBLIC_APP_URL=https://your-project.vercel.app
+ADMIN_BASIC_AUTH_USER=your-admin-user
+ADMIN_BASIC_AUTH_PASSWORD=your-strong-password
+```
+
+After deployment, verify:
+
+```bash
+GET /api/health
+```
+
+It should report:
+
+- `environment: "production"`
+- `provider.configured: true`
+- the expected model and timeout values
+
+More detail: `docs/vercel-deployment.md`
+
+## Security notes
+
+- Keep real provider keys only in local env files and deployment platform env vars
+- Never put secrets in `NEXT_PUBLIC_*`
+- `/admin/*` and `/api/admin/*` are guarded by Basic Auth in deployment
+- Run the secret scan before pushing:
+
+```bash
+npm run security:scan
+```
 
 ## Quality checks
 
@@ -176,9 +199,18 @@ npm run test
 npm run build
 ```
 
-## Suggested next implementation steps
+## Current limitations
 
-1. Replace the in-memory store with PostgreSQL repositories backed by `db/schema.sql`.
-2. Add authentication for the admin console.
-3. Add embedding generation and actual pgvector similarity search.
-4. Add region-aware resource localization and internationalization.
+This is still a prototype. The main limitation right now is persistence.
+
+- Sessions, moods, resources, and risk events currently use an in-memory store
+- The PostgreSQL / pgvector schema exists, but the runtime data layer has not been migrated yet
+- This means production state is not durable across serverless instance churn
+
+## Recommended next steps
+
+1. Replace the in-memory store with PostgreSQL-backed repositories
+2. Add durable session storage for production chat
+3. Add embeddings + real pgvector retrieval
+4. Improve chat controls with stop / retry / regenerate actions
+5. Expand i18n and region-aware resource localization
