@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fff9f1;
+  --background: #f6f8fb;
   --foreground: #17212b;
   --font-sans: var(--font-manrope);
   --font-mono: var(--font-plex-mono);
@@ -24,6 +24,32 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+}
+
+.typing-dot {
+  animation: eunoia-typing 1.2s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+@keyframes eunoia-typing {
+  0%,
+  80%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
 }
 
 .font-serif {
@@ -32,16 +58,16 @@ body {
 
 .display-title {
   font-family: var(--font-serif);
-  letter-spacing: -0.045em;
-  line-height: 0.96;
+  letter-spacing: 0;
+  line-height: 1.02;
   text-wrap: balance;
 }
 
 .display-subtitle,
 .section-title {
   font-family: var(--font-serif);
-  letter-spacing: -0.035em;
-  line-height: 1.05;
+  letter-spacing: 0;
+  line-height: 1.12;
   text-wrap: balance;
 }
 
@@ -54,7 +80,7 @@ html:lang(zh-CN) .display-subtitle,
 html:lang(zh-CN) .section-title {
   font-family: var(--font-sans);
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   line-height: 1.12;
 }
 
@@ -63,5 +89,21 @@ html:lang(zh-CN) .eyebrow-label {
 }
 
 ::selection {
-  background: rgba(240, 140, 90, 0.22);
+  background: rgba(8, 145, 178, 0.2);
+}
+
+:focus-visible {
+  outline: 3px solid rgba(8, 145, 178, 0.35);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

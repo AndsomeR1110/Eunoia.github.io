@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { AdminBadge, AdminHero, AdminSection } from "@/components/admin-chrome";
+import { AdminLogoutButton } from "@/components/admin-session-actions";
 import { getRiskLevelLabel } from "@/lib/i18n";
 import { listRiskEvents } from "@/lib/server/store";
 import { getLocale, getServerDictionary } from "@/lib/server/locale";
@@ -15,7 +16,11 @@ export default async function AdminRiskPage() {
   const highCount = events.filter((event) => event.riskLevel === "HIGH").length;
 
   return (
-    <AppShell eyebrow={dict.pages.adminRisk.eyebrow} title={dict.pages.adminRisk.title}>
+    <AppShell
+      eyebrow={dict.pages.adminRisk.eyebrow}
+      title={dict.pages.adminRisk.title}
+      headerAction={<AdminLogoutButton label={dict.adminLogin.logout} />}
+    >
       <div className="space-y-6">
         <AdminHero
           eyebrow={dict.pages.adminRisk.heroEyebrow}
@@ -46,13 +51,12 @@ export default async function AdminRiskPage() {
           title={dict.pages.adminRisk.queueTitle}
           description={dict.pages.adminRisk.queueDescription}
           badge={locale === "zh" ? "按最近时间倒序" : "Newest events first"}
-          className="bg-[linear-gradient(180deg,_#ffffff_0%,_#fcfaf7_100%)]"
         >
           <div className="space-y-4">
             {events.map((event) => (
               <div
                 key={event.id}
-                className={`rounded-[26px] border p-5 shadow-[0_14px_36px_rgba(58,56,70,0.04)] ${getRiskContainerClasses(event.riskLevel)}`}
+                className={`rounded-3xl border p-5 shadow-sm ${getRiskContainerClasses(event.riskLevel)}`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2">
@@ -61,15 +65,15 @@ export default async function AdminRiskPage() {
                     </AdminBadge>
                     <span className="font-medium text-slate-950">{event.reason}</span>
                   </div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  <div className="text-xs font-semibold uppercase text-slate-500">
                     {formatDateTime(event.createdAt, locale)}
                   </div>
                 </div>
-                <div className="mt-4 rounded-[22px] border border-white/70 bg-white/75 px-4 py-4 text-sm leading-7 text-slate-700">
+                <div className="mt-4 rounded-3xl border border-white/70 bg-white/75 px-4 py-4 text-sm leading-7 text-slate-700">
                   &quot;{event.excerpt}&quot;
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  <span className="text-xs font-semibold uppercase text-slate-500">
                     {dict.pages.adminRisk.signals}
                   </span>
                   {event.matchedSignals.map((signal) => (
@@ -81,7 +85,7 @@ export default async function AdminRiskPage() {
               </div>
             ))}
             {events.length === 0 ? (
-              <div className="rounded-[24px] border border-dashed border-[#d6e3e9] bg-[linear-gradient(180deg,_#f8fbfd_0%,_#ffffff_100%)] px-5 py-8 text-sm text-slate-500">
+              <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-sm text-slate-500">
                 {dict.pages.adminRisk.empty}
               </div>
             ) : null}
@@ -106,12 +110,12 @@ function getRiskTone(level: "LOW" | "MODERATE" | "HIGH" | "CRITICAL") {
 
 function getRiskContainerClasses(level: "LOW" | "MODERATE" | "HIGH" | "CRITICAL") {
   if (level === "CRITICAL") {
-    return "border-[#efc9bd] bg-[linear-gradient(180deg,_#fff6f2_0%,_#ffffff_100%)]";
+    return "border-red-200 bg-red-50";
   }
 
   if (level === "HIGH") {
-    return "border-[#f0d8cb] bg-[linear-gradient(180deg,_#fff9f4_0%,_#ffffff_100%)]";
+    return "border-orange-200 bg-orange-50";
   }
 
-  return "border-[#dbe7ec] bg-[linear-gradient(180deg,_#f7fbfd_0%,_#ffffff_100%)]";
+  return "border-slate-200 bg-white";
 }

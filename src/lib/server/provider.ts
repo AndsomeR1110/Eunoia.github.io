@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
 import { EUNOIA_SYSTEM_PROMPT } from "@/lib/prompts";
-import { serverEnv } from "@/lib/server/env";
+import { isProduction, serverEnv } from "@/lib/server/env";
 import type { ConversationTurn, KnowledgeDocument, Locale, RiskLevel } from "@/lib/types";
 
 interface GenerateReplyInput {
@@ -18,9 +18,24 @@ export interface ChatProvider {
   generateReply(input: GenerateReplyInput): Promise<string>;
 }
 
+export class ProviderConfigurationError extends Error {
+  constructor(message = "AI provider is not configured.") {
+    super(message);
+    this.name = "ProviderConfigurationError";
+  }
+}
+
+export class ProviderRequestError extends Error {
+  constructor(message = "AI provider request failed.") {
+    super(message);
+    this.name = "ProviderRequestError";
+  }
+}
+
 class OpenAICompatibleProvider implements ChatProvider {
   private client: OpenAI | null;
   private model: string;
+  private timeoutMs: number;
 
   constructor() {
     const apiKey = serverEnv.openAiApiKey;
@@ -31,11 +46,18 @@ class OpenAICompatibleProvider implements ChatProvider {
         })
       : null;
     this.model = serverEnv.openAiModel;
+    this.timeoutMs = serverEnv.openAiTimeoutMs;
   }
 
   async generateReply(input: GenerateReplyInput) {
     if (!this.client) {
-      return buildFallbackReply(input);
+      if (shouldUseDemoFallback()) {
+        return buildFallbackReply(input);
+      }
+
+      throw new ProviderConfigurationError(
+        "Missing OPENAI_API_KEY while demo mode is disabled.",
+      );
     }
 
     const knowledgeBlock =
@@ -61,14 +83,63 @@ class OpenAICompatibleProvider implements ChatProvider {
       },
     ];
 
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages,
-      temperature: 0.7,
-      max_completion_tokens: 220,
-    });
+    try {
+      const response = await withTimeout(
+        this.client.chat.completions.create({
+          model: this.model,
+          messages,
+          temperature: 0.7,
+          max_completion_tokens: 220,
+        }),
+        this.timeoutMs,
+      );
 
-    return response.choices[0]?.message?.content?.trim() || buildFallbackReply(input);
+      return response.choices[0]?.message?.content?.trim() || buildFallbackReply(input);
+    } catch (error) {
+      console.error("[Eunoia] provider request failed", error);
+
+      if (shouldUseDemoFallback()) {
+        return buildFallbackReply(input);
+      }
+
+      throw new ProviderRequestError(getProviderFailureMessage(error));
+    }
+  }
+}
+
+function shouldUseDemoFallback() {
+  if (isProduction()) {
+    return serverEnv.allowDemoMode;
+  }
+
+  return true;
+}
+
+function getProviderFailureMessage(error: unknown) {
+  if (error instanceof Error && error.name === "TimeoutError") {
+    return "AI provider timed out.";
+  }
+
+  return "AI provider request failed.";
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  let timeoutHandle: NodeJS.Timeout | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      const timeoutError = new Error(`Timed out after ${timeoutMs}ms`);
+      timeoutError.name = "TimeoutError";
+      reject(timeoutError);
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
   }
 }
 
@@ -107,6 +178,16 @@ function buildFallbackReply(input: GenerateReplyInput) {
       : "";
 
   return `${validation} ${supportStep}${grounded}`.trim();
+}
+
+export function getProviderRuntimeStatus() {
+  return {
+    configured: Boolean(serverEnv.openAiApiKey),
+    baseUrl: serverEnv.openAiBaseUrl,
+    model: serverEnv.openAiModel,
+    timeoutMs: serverEnv.openAiTimeoutMs,
+    demoModeEnabled: shouldUseDemoFallback(),
+  };
 }
 
 export const chatProvider: ChatProvider = new OpenAICompatibleProvider();

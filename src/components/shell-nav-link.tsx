@@ -21,14 +21,14 @@ export function ShellNavLink({
     <Link
       href={href}
       className={cn(
-        "block rounded-2xl px-4 py-3 text-sm font-medium transition",
+        "inline-flex min-h-11 shrink-0 items-center rounded-2xl px-3.5 py-2 text-sm font-medium transition",
         tone === "cool"
-          ? "text-slate-700 hover:bg-[#eaf2f5] hover:text-slate-950"
-          : "text-slate-700 hover:bg-[#f5efe6] hover:text-slate-950",
+          ? "text-slate-600 hover:bg-cyan-50 hover:text-slate-950"
+          : "text-slate-700 hover:bg-slate-100 hover:text-slate-950",
         isActive &&
           (tone === "cool"
-            ? "bg-[linear-gradient(135deg,_#edf5f7_0%,_#ffffff_100%)] text-slate-950 shadow-[inset_0_0_0_1px_rgba(180,208,220,0.7)]"
-            : "bg-[linear-gradient(135deg,_#fff6ee_0%,_#ffffff_100%)] text-slate-950 shadow-[inset_0_0_0_1px_rgba(239,210,190,0.85)]"),
+            ? "bg-cyan-50 text-cyan-900 ring-1 ring-cyan-200"
+            : "bg-slate-900 text-white"),
       )}
       aria-current={isActive ? "page" : undefined}
     >

@@ -5,6 +5,8 @@ const rawServerEnv = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
   OPENAI_MODEL: process.env.OPENAI_MODEL,
+  OPENAI_TIMEOUT_MS: process.env.OPENAI_TIMEOUT_MS,
+  ALLOW_DEMO_MODE: process.env.ALLOW_DEMO_MODE,
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   ADMIN_BASIC_AUTH_USER: process.env.ADMIN_BASIC_AUTH_USER,
   ADMIN_BASIC_AUTH_PASSWORD: process.env.ADMIN_BASIC_AUTH_PASSWORD,
@@ -15,6 +17,8 @@ const serverEnvSchema = z.object({
   OPENAI_API_KEY: z.string().trim().min(1).optional(),
   OPENAI_BASE_URL: z.string().trim().url().optional(),
   OPENAI_MODEL: z.string().trim().min(1).optional(),
+  OPENAI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).optional(),
+  ALLOW_DEMO_MODE: z.enum(["true", "false"]).optional(),
   NEXT_PUBLIC_APP_URL: z.string().trim().url().optional(),
   ADMIN_BASIC_AUTH_USER: z.string().trim().min(1).optional(),
   ADMIN_BASIC_AUTH_PASSWORD: z.string().trim().min(1).optional(),
@@ -38,6 +42,8 @@ export const serverEnv = {
   openAiBaseUrl:
     env.OPENAI_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1",
   openAiModel: env.OPENAI_MODEL || "qwen3.5-plus-2026-02-15",
+  openAiTimeoutMs: env.OPENAI_TIMEOUT_MS || 25000,
+  allowDemoMode: env.ALLOW_DEMO_MODE ? env.ALLOW_DEMO_MODE === "true" : true,
   appUrl: env.NEXT_PUBLIC_APP_URL,
   adminBasicAuthUser: env.ADMIN_BASIC_AUTH_USER,
   adminBasicAuthPassword: env.ADMIN_BASIC_AUTH_PASSWORD,
@@ -56,4 +62,8 @@ export function getAdminBasicAuth() {
 
 export function isProduction() {
   return serverEnv.nodeEnv === "production";
+}
+
+export function isProviderConfigured() {
+  return Boolean(serverEnv.openAiApiKey);
 }

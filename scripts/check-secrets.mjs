@@ -24,7 +24,7 @@ const patterns = [
   {
     label: "Credential assignment",
     regex:
-      /\b(?:api[_-]?key|secret|token|password)\b\s*[:=]\s*["']?[A-Za-z0-9_./+=-]{16,}["']?/gi,
+      /\b(?:api[_-]?key|secret|token|password)\b\s*[:=]\s*(?:(["'])[A-Za-z0-9_./+=-]{16,}\1|\b[A-Z][A-Z0-9_]{2,}\s*=\s*[A-Za-z0-9_./+=-]{16,}\b)/g,
   },
   {
     label: "Bearer token",

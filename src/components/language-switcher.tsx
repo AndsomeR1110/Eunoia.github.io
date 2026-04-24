@@ -17,13 +17,13 @@ export function LanguageSwitcher({ locale }: { locale: Locale }) {
   }
 
   return (
-    <div className="inline-flex w-[156px] rounded-full border border-[#d8e4ea] bg-white p-1 text-sm">
+    <div className="inline-flex min-h-11 w-[156px] rounded-2xl border border-slate-200 bg-white p-1 text-sm shadow-sm">
       {(["en", "zh"] as const).map((item) => (
         <button
           key={item}
           type="button"
           onClick={() => setLocale(item)}
-          className={`flex-1 rounded-full px-3 py-1.5 text-center font-medium transition ${locale === item ? "bg-[#1f3341] text-white" : "text-slate-600 hover:bg-[#f1f5f7]"}`}
+          className={`flex-1 cursor-pointer rounded-xl px-3 py-1.5 text-center font-semibold transition ${locale === item ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
         >
           {item === "en" ? "EN" : "中文"}
         </button>

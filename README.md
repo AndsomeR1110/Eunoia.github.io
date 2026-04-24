@@ -45,6 +45,8 @@ npm run dev
 - `OPENAI_API_KEY`: optional; if omitted, the chat provider falls back to a deterministic demo reply generator.
 - `OPENAI_BASE_URL`: defaults to `https://dashscope.aliyuncs.com/compatible-mode/v1`.
 - `OPENAI_MODEL`: defaults to `qwen3.5-plus-2026-02-15`. You can switch to `qwen3.5-flash` for a faster, cheaper prototype loop.
+- `OPENAI_TIMEOUT_MS`: provider timeout in milliseconds. Default is `25000`.
+- `ALLOW_DEMO_MODE`: when `true`, Eunoia can fall back to demo replies if the provider is missing or temporarily failing. For production, set this to `false` if you want deployment to depend on a real model backend.
 - `DATABASE_URL`: reserved for PostgreSQL integration.
 - `NEXT_PUBLIC_APP_URL`: app base URL for deployment contexts.
 - `ADMIN_BASIC_AUTH_USER`: protects `/admin/*` and `/api/admin/*` in deployment.
@@ -65,6 +67,43 @@ For a lighter-weight development setup, switch the model to:
 ```bash
 OPENAI_MODEL=qwen3.5-flash
 ```
+
+## Backend readiness for Vercel
+
+The app already runs a server-side backend through Next.js route handlers under `src/app/api/*`.
+
+- `POST /api/chat/session`
+- `POST /api/chat/message`
+- `GET /api/health`
+- `POST /api/mood/check-in`
+- `GET /api/mood/check-in`
+- `GET /api/skills`
+- `GET /api/resources`
+
+### Recommended production settings
+
+For Vercel deployments:
+
+```bash
+OPENAI_API_KEY=your-real-provider-key
+OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+OPENAI_MODEL=qwen3.5-plus-2026-02-15
+OPENAI_TIMEOUT_MS=25000
+ALLOW_DEMO_MODE=false
+NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
+ADMIN_BASIC_AUTH_USER=your-admin-user
+ADMIN_BASIC_AUTH_PASSWORD=your-strong-password
+```
+
+### Health check
+
+After deployment, verify backend connectivity at:
+
+```bash
+GET /api/health
+```
+
+It returns whether the provider is configured, whether demo fallback is enabled, and the current runtime environment.
 
 ## API security baseline
 
@@ -102,6 +141,7 @@ The app is implemented with a working in-memory store so the prototype can run i
 
 ### APIs
 
+- `GET /api/health`
 - `POST /api/chat/session`
 - `POST /api/chat/message`
 - `POST /api/mood/check-in`

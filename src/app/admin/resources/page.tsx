@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/app-shell";
 import { AdminHero } from "@/components/admin-chrome";
 import { AdminResourceEditor } from "@/components/admin-resource-editor";
+import { AdminLogoutButton } from "@/components/admin-session-actions";
 import { listResources } from "@/lib/server/store";
 import { getLocale, getServerDictionary } from "@/lib/server/locale";
 
@@ -15,7 +16,11 @@ export default async function AdminResourcesPage() {
   const textCount = resources.filter((resource) => resource.textLine).length;
 
   return (
-    <AppShell eyebrow={dict.pages.adminResources.eyebrow} title={dict.pages.adminResources.title}>
+    <AppShell
+      eyebrow={dict.pages.adminResources.eyebrow}
+      title={dict.pages.adminResources.title}
+      headerAction={<AdminLogoutButton label={dict.adminLogin.logout} />}
+    >
       <div className="space-y-6">
         <AdminHero
           eyebrow={dict.pages.adminResources.heroEyebrow}

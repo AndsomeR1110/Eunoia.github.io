@@ -1,6 +1,13 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import {
+  ADMIN_LOGIN_PATH,
+  ADMIN_SESSION_COOKIE_NAME,
+  hasValidAdminSession,
+  getConfiguredAdminCredentials,
+} from "@/lib/admin-auth";
+
 const ADMIN_PATH_PREFIXES = ["/admin", "/api/admin"];
 
 function isAdminPath(pathname: string) {
@@ -9,62 +16,31 @@ function isAdminPath(pathname: string) {
   );
 }
 
-function getConfiguredAdminCredentials() {
-  const username = process.env.ADMIN_BASIC_AUTH_USER;
-  const password = process.env.ADMIN_BASIC_AUTH_PASSWORD;
-
-  if (!username || !password) {
-    return null;
-  }
-
-  return { username, password };
+function isPublicAdminPath(pathname: string) {
+  return pathname === ADMIN_LOGIN_PATH;
 }
 
-function unauthorizedResponse(isApiRequest: boolean) {
-  const headers = new Headers({
-    "WWW-Authenticate": 'Basic realm="Eunoia Admin", charset="UTF-8"',
-  });
-
+function unauthorizedResponse(isApiRequest: boolean, loginUrl?: string) {
   if (isApiRequest) {
-    headers.set("Content-Type", "application/json");
     return new NextResponse(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers,
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
   }
 
-  return new NextResponse("Unauthorized", {
-    status: 401,
-    headers,
-  });
+  return NextResponse.redirect(loginUrl || ADMIN_LOGIN_PATH);
 }
 
-function decodeBasicAuth(headerValue: string) {
-  if (!headerValue.startsWith("Basic ")) {
-    return null;
-  }
-
-  try {
-    const decoded = atob(headerValue.slice("Basic ".length));
-    const separatorIndex = decoded.indexOf(":");
-
-    if (separatorIndex === -1) {
-      return null;
-    }
-
-    return {
-      username: decoded.slice(0, separatorIndex),
-      password: decoded.slice(separatorIndex + 1),
-    };
-  } catch {
-    return null;
-  }
-}
-
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!isAdminPath(pathname)) {
+    return NextResponse.next();
+  }
+
+  if (isPublicAdminPath(pathname)) {
     return NextResponse.next();
   }
 
@@ -78,19 +54,25 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const providedCredentials = decodeBasicAuth(
-    request.headers.get("authorization") || "",
-  );
+  const sessionToken = request.cookies.get(ADMIN_SESSION_COOKIE_NAME)?.value;
 
-  if (
-    !providedCredentials ||
-    providedCredentials.username !== configuredCredentials.username ||
-    providedCredentials.password !== configuredCredentials.password
-  ) {
-    return unauthorizedResponse(pathname.startsWith("/api/"));
+  if (await hasValidAdminSession(sessionToken, configuredCredentials)) {
+    return NextResponse.next();
   }
 
-  return NextResponse.next();
+  if (pathname.startsWith("/api/")) {
+    return unauthorizedResponse(true);
+  }
+
+  const loginUrl = request.nextUrl.clone();
+  loginUrl.pathname = ADMIN_LOGIN_PATH;
+  loginUrl.search = "";
+  loginUrl.searchParams.set(
+    "next",
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+  );
+
+  return unauthorizedResponse(false, loginUrl.toString());
 }
 
 export const config = {

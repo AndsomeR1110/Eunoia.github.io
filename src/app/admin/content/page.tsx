@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { AdminHero } from "@/components/admin-chrome";
+import { AdminLogoutButton } from "@/components/admin-session-actions";
 import { AdminContentStudio } from "@/components/admin-content-studio";
 import { listKnowledgeDocuments } from "@/lib/server/store";
 import { getLocale, getServerDictionary } from "@/lib/server/locale";
@@ -14,7 +15,11 @@ export default async function AdminContentPage() {
   const draftCount = documents.length - publishedCount;
 
   return (
-    <AppShell eyebrow={dict.pages.adminContent.eyebrow} title={dict.pages.adminContent.title}>
+    <AppShell
+      eyebrow={dict.pages.adminContent.eyebrow}
+      title={dict.pages.adminContent.title}
+      headerAction={<AdminLogoutButton label={dict.adminLogin.logout} />}
+    >
       <div className="space-y-6">
         <AdminHero
           eyebrow={dict.pages.adminContent.heroEyebrow}

@@ -1,21 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useEffect, useEffectEvent, useState } from "react";
-
-import { Surface, SectionTitle } from "@/components/cards";
 import {
-  getMoodOptions,
-  getResponseModeLabel,
-  getRiskLevelLabel,
-} from "@/lib/i18n";
+  KeyboardEvent,
+  startTransition,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
+
+import { getMoodOptions } from "@/lib/i18n";
 import { formatDateTime } from "@/lib/utils";
 import type {
   ChatReply,
   ConversationMode,
   ConversationTurn,
   Locale,
-  SafetyDecision,
 } from "@/lib/types";
 
 interface ChatState {
@@ -38,20 +39,6 @@ interface ChatClientCopy {
   thinking: string;
   send: string;
   urgentHelp: string;
-  supportSummaryTitle: string;
-  supportSummaryDescription: string;
-  latestResponse: string;
-  waiting: string;
-  recommendedActions: string;
-  actionGuidance: string;
-  resourceLinks: string;
-  safetyLedgerTitle: string;
-  safetyLedgerDescription: string;
-  riskLevel: string;
-  reason: string;
-  matchedSignals: string;
-  noMessages: string;
-  noneDetected: string;
   sessionError: string;
   sendError: string;
   starterPrompts: readonly string[];
@@ -67,6 +54,7 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
   const [loading, setLoading] = useState(false);
   const [preMoodSaved, setPreMoodSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
   const moodOptions = getMoodOptions(locale);
 
   const bootstrap = useEffectEvent(async () => {
@@ -78,6 +66,10 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ alias, mode, locale }),
     });
+
+    if (!response.ok) {
+      throw new Error("Unable to create session");
+    }
 
     const data = await response.json();
     setState((current) => ({
@@ -95,6 +87,15 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
     });
   }, [copy.sessionError]);
 
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [state.turns.length, loading]);
+
+  function changeMode(mode: ConversationMode) {
+    setState((current) => ({ ...current, mode }));
+    localStorage.setItem("eunoia-mode", mode);
+  }
+
   async function saveMood(score: number) {
     if (!state.sessionId) {
       return;
@@ -105,7 +106,7 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
       return;
     }
 
-    await fetch("/api/mood/check-in", {
+    const response = await fetch("/api/mood/check-in", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -115,18 +116,22 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
         phase: "pre",
       }),
     });
-    setPreMoodSaved(true);
+
+    if (response.ok) {
+      setPreMoodSaved(true);
+    }
   }
 
   async function send(nextMessage: string) {
-    if (!nextMessage.trim() || !state.sessionId) {
+    const trimmed = nextMessage.trim();
+    if (!trimmed || !state.sessionId || loading) {
       return;
     }
 
     const optimisticTurn: ConversationTurn = {
       id: `client-${Date.now()}`,
       role: "user",
-      message: nextMessage,
+      message: trimmed,
       createdAt: new Date().toISOString(),
     };
 
@@ -147,9 +152,13 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
           alias: state.alias,
           mode: state.mode,
           locale,
-          message: nextMessage,
+          message: trimmed,
         }),
       });
+
+      if (!response.ok) {
+        throw new Error("Message failed");
+      }
 
       const reply = (await response.json()) as ChatReply & { sessionId: string };
       const assistantTurn: ConversationTurn = {
@@ -157,7 +166,6 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
         role: "assistant",
         message: reply.assistantMessage,
         createdAt: new Date().toISOString(),
-        riskLevel: reply.riskLevel,
         responseMode: reply.responseMode,
       };
 
@@ -174,214 +182,185 @@ export function ChatClient({ locale, copy }: { locale: Locale; copy: ChatClientC
     }
   }
 
+  function handleInputKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault();
+      void send(message);
+    }
+  }
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.18fr)_380px]">
-      <Surface className="min-h-[760px] bg-[linear-gradient(180deg,_#ffffff_0%,_#fcfaf7_100%)]">
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium text-slate-500">
-              {copy.chattingAs} {state.alias}
-            </div>
-            <div className="section-title mt-2 text-3xl text-slate-950">
-              {state.mode === "vent" ? copy.ventMode : copy.supportMode}
-            </div>
-          </div>
-          <div className="rounded-full border border-[#f1dccf] bg-[#fff7f0] px-4 py-2 text-sm text-[#9f5832]">
-            {copy.riskBanner}
-          </div>
+    <section className="mx-auto flex h-[calc(100dvh-142px)] min-h-[620px] max-w-5xl flex-col overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1 pb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <ModeButton active={state.mode === "support"} onClick={() => changeMode("support")}>
+            {copy.supportMode}
+          </ModeButton>
+          <ModeButton active={state.mode === "vent"} onClick={() => changeMode("vent")}>
+            {copy.ventMode}
+          </ModeButton>
+          <span className="text-xs text-slate-400">
+            {copy.chattingAs} {state.alias}
+          </span>
         </div>
 
-        {!preMoodSaved && (
-          <div className="mb-6 rounded-[28px] border border-[#f1dccf] bg-[linear-gradient(180deg,_#fff8f2_0%,_#fffdf9_100%)] p-5">
-            <div className="mb-3 text-sm font-semibold tracking-[0.12em] text-[#9f5832]">
-              {copy.preMoodTitle}
-            </div>
-            <div className="flex flex-wrap gap-2.5">
+        <Link
+          href="/help-now"
+          className="inline-flex min-h-10 items-center rounded-2xl border border-red-200 bg-red-50 px-3.5 py-2 text-sm font-semibold text-red-800 transition hover:bg-red-100"
+        >
+          {copy.urgentHelp}
+        </Link>
+      </div>
+
+      {!preMoodSaved && state.turns.length === 0 ? (
+        <div className="mb-4 rounded-3xl border border-cyan-100 bg-cyan-50/70 px-4 py-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm font-medium text-cyan-950">{copy.preMoodTitle}</div>
+            <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0">
               {moodOptions.map((item) => (
                 <button
                   key={item.score}
                   type="button"
                   onClick={() => saveMood(item.score)}
-                  className="rounded-full border border-[#e6d6c4] bg-white px-3.5 py-2.5 text-sm text-slate-700 transition hover:border-[#ec9c6c] hover:bg-[#fff8f2]"
+                  className="min-h-10 shrink-0 cursor-pointer rounded-2xl border border-cyan-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-500 hover:bg-cyan-50"
                 >
-                  {item.score}. {item.label}
+                  {item.score} · {item.label}
                 </button>
               ))}
             </div>
           </div>
-        )}
+        </div>
+      ) : null}
 
-        <div className="rounded-[32px] border border-[#ebe7e1] bg-[#fcfbf8] p-4 sm:p-5">
-          <div className="space-y-4">
-          {state.turns.length === 0 ? (
-            <div className="rounded-[28px] border border-dashed border-[#d8e4ea] bg-[linear-gradient(180deg,_#f7fbfd_0%,_#ffffff_100%)] p-6">
-              <div className="section-title text-2xl text-slate-950">{copy.startTitle}</div>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                {copy.startDescription}
-              </p>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {copy.starterPrompts.map((prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    onClick={() => setMessage(prompt)}
-                    className="rounded-[22px] border border-[#d4e3ea] bg-white px-4 py-4 text-left text-sm leading-6 text-slate-700 transition hover:bg-[#edf5f8]"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
+      <div className="flex-1 overflow-y-auto px-1 py-4">
+        {state.turns.length === 0 ? (
+          <div className="mx-auto flex h-full max-w-3xl flex-col items-center justify-center text-center">
+            <p className="text-lg font-medium text-slate-700">{copy.startTitle}</p>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">{copy.startDescription}</p>
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              {copy.starterPrompts.slice(0, 3).map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => void send(prompt)}
+                  className="min-h-10 cursor-pointer rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-50"
+                >
+                  {prompt}
+                </button>
+              ))}
             </div>
-          ) : null}
+          </div>
+        ) : null}
 
+        <div className="mx-auto flex max-w-3xl flex-col gap-5">
           {state.turns.map((turn) => (
-            <div
-              key={turn.id}
-              className={`max-w-3xl rounded-[28px] border px-5 py-4 shadow-[0_12px_36px_rgba(58,56,70,0.04)] ${turn.role === "assistant" ? "border-[#dce9ee] bg-[#f7fbfd]" : "ml-auto border-[#f1ddcf] bg-[#fff4eb]"}`}
-            >
-              <div className="mb-2 flex items-center gap-3 text-xs uppercase tracking-[0.25em] text-slate-500">
-                <span>{turn.role === "assistant" ? "Eunoia" : state.alias}</span>
-                <span>{formatDateTime(turn.createdAt, locale)}</span>
-                {turn.riskLevel ? <span>{getRiskLevelLabel(locale, turn.riskLevel)}</span> : null}
-              </div>
-              <p className="text-sm leading-7 text-slate-800">{turn.message}</p>
-            </div>
+            <MessageBubble key={turn.id} turn={turn} alias={state.alias} locale={locale} />
           ))}
-          </div>
+          {loading ? <TypingIndicator /> : null}
+          <div ref={bottomRef} />
         </div>
-
-        <div className="mt-6 rounded-[30px] border border-[#e9e3da] bg-white p-4 shadow-[0_16px_50px_rgba(52,48,61,0.05)]">
-          <div className="space-y-3">
-            <textarea
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              placeholder={copy.inputPlaceholder}
-              className="min-h-32 w-full rounded-[24px] border border-[#e5dbcf] bg-[#fffdf9] px-5 py-4 outline-none transition focus:border-[#ec9c6c]"
-            />
-            {error ? <div className="text-sm text-red-600">{error}</div> : null}
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => send(message)}
-                disabled={loading}
-                className="rounded-full bg-[#1f3341] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#182833] disabled:opacity-50"
-              >
-                {loading ? copy.thinking : copy.send}
-              </button>
-              <Link
-                href="/help-now"
-                className="rounded-full border border-[#f1ddcf] bg-[#fff7f1] px-5 py-3 text-sm font-semibold text-[#a94f28] transition hover:bg-[#fff1e8]"
-              >
-                {copy.urgentHelp}
-              </Link>
-            </div>
-          </div>
-        </div>
-      </Surface>
-
-      <div className="sticky top-6 space-y-6 self-start">
-        <SupportSummary locale={locale} copy={copy} lastReply={state.lastReply} />
-        <SafetyLedger locale={locale} copy={copy} safetyDecision={state.lastReply?.safetyDecision} />
       </div>
-    </div>
+
+      <div className="mx-auto w-full max-w-3xl px-1 pb-2 pt-3">
+        <div className="rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
+          <label htmlFor="chat-message" className="sr-only">
+            {copy.inputPlaceholder}
+          </label>
+          <textarea
+            id="chat-message"
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            onKeyDown={handleInputKeyDown}
+            placeholder={copy.inputPlaceholder}
+            className="min-h-20 w-full resize-none rounded-2xl border-0 bg-transparent px-3 py-3 text-base leading-7 text-slate-900 outline-none placeholder:text-slate-400"
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-1">
+            <div className="text-xs leading-5 text-slate-400">{copy.riskBanner}</div>
+            <button
+              type="button"
+              onClick={() => send(message)}
+              disabled={loading || !message.trim() || !state.sessionId}
+              className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {copy.send}
+            </button>
+          </div>
+        </div>
+        {error ? <div className="mt-2 px-3 text-sm font-medium text-red-700">{error}</div> : null}
+      </div>
+    </section>
   );
 }
 
-function SupportSummary({
-  lastReply,
-  locale,
-  copy,
+function ModeButton({
+  active,
+  children,
+  onClick,
 }: {
-  lastReply?: ChatReply;
-  locale: Locale;
-  copy: ChatClientCopy;
+  active: boolean;
+  children: string;
+  onClick: () => void;
 }) {
   return (
-    <Surface className="bg-[linear-gradient(180deg,_#eff6f8_0%,_#ffffff_100%)]">
-      <SectionTitle
-        title={copy.supportSummaryTitle}
-        description={copy.supportSummaryDescription}
-      />
-
-      <div className="space-y-4 text-sm text-slate-700">
-        <div className="rounded-2xl bg-white/90 p-4">
-          <div className="text-xs uppercase tracking-[0.25em] text-slate-500">{copy.latestResponse}</div>
-          <div className="mt-2 font-medium text-slate-900">
-            {lastReply
-              ? `${getRiskLevelLabel(locale, lastReply.riskLevel)} • ${getResponseModeLabel(locale, lastReply.responseMode)}`
-              : copy.waiting}
-          </div>
-        </div>
-
-        <div>
-          <div className="mb-2 text-xs uppercase tracking-[0.25em] text-slate-500">{copy.recommendedActions}</div>
-          <div className="space-y-2">
-            {(lastReply?.recommendedActions || []).map((action) => (
-              <div key={action.id} className="rounded-[22px] border border-[#dbe7ec] bg-white p-4">
-                <div className="font-medium text-slate-900">{action.label}</div>
-                <div className="mt-1 text-slate-600">{action.description}</div>
-              </div>
-            ))}
-            {!lastReply ? <div className="text-slate-500">{copy.actionGuidance}</div> : null}
-          </div>
-        </div>
-
-        <div>
-          <div className="mb-2 text-xs uppercase tracking-[0.25em] text-slate-500">{copy.resourceLinks}</div>
-          <div className="space-y-2">
-            {(lastReply?.resourceLinks || []).map((resource) => (
-              <a
-                key={resource.id}
-                href={resource.website}
-                target="_blank"
-                rel="noreferrer"
-                className="block rounded-[22px] border border-[#dbe7ec] bg-white p-4 transition hover:border-[#7da4b5]"
-              >
-                <div className="font-medium text-slate-900">{resource.name}</div>
-                <div className="mt-1 text-slate-600">
-                  {resource.phone || resource.textLine || resource.website}
-                </div>
-              </a>
-            ))}
-          </div>
-        </div>
-      </div>
-    </Surface>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`min-h-10 cursor-pointer rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
+        active
+          ? "bg-slate-950 text-white"
+          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
-function SafetyLedger({
-  safetyDecision,
+function MessageBubble({
+  turn,
+  alias,
   locale,
-  copy,
 }: {
-  safetyDecision?: SafetyDecision;
+  turn: ConversationTurn;
+  alias: string;
   locale: Locale;
-  copy: ChatClientCopy;
 }) {
+  const isAssistant = turn.role === "assistant";
+
   return (
-    <Surface>
-      <SectionTitle title={copy.safetyLedgerTitle} description={copy.safetyLedgerDescription} />
-      <div className="space-y-3 text-sm text-slate-700">
-        <RiskRow
-          label={copy.riskLevel}
-          value={getRiskLevelLabel(locale, safetyDecision?.riskLevel || "LOW")}
-        />
-        <RiskRow label={copy.reason} value={safetyDecision?.reason || copy.noMessages} />
-        <RiskRow
-          label={copy.matchedSignals}
-          value={safetyDecision?.matchedSignals.join(", ") || copy.noneDetected}
-        />
+    <article className={`group flex ${isAssistant ? "justify-start" : "justify-end"}`}>
+      <div className={`max-w-[86%] ${isAssistant ? "text-slate-900" : "text-white"}`}>
+        <div
+          className={`rounded-3xl px-4 py-3 ${
+            isAssistant
+              ? "bg-white shadow-sm ring-1 ring-slate-200"
+              : "bg-slate-950"
+          }`}
+        >
+          <p className="whitespace-pre-wrap text-base leading-7">{turn.message}</p>
+        </div>
+        <div
+          className={`mt-1 px-2 text-xs text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ${
+            isAssistant ? "text-left" : "text-right"
+          }`}
+        >
+          <span>{isAssistant ? "Eunoia" : alias}</span>
+          <span aria-hidden="true"> · </span>
+          <time dateTime={turn.createdAt}>{formatDateTime(turn.createdAt, locale)}</time>
+        </div>
       </div>
-    </Surface>
+    </article>
   );
 }
 
-function RiskRow({ label, value }: { label: string; value: string }) {
+function TypingIndicator() {
   return (
-    <div className="rounded-[22px] bg-[#f8f5f0] p-4">
-      <div className="text-xs uppercase tracking-[0.25em] text-slate-500">{label}</div>
-      <div className="mt-1 text-slate-900">{value}</div>
+    <div className="flex justify-start">
+      <div className="flex items-center gap-1 rounded-3xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200">
+        <span className="typing-dot h-2 w-2 rounded-full bg-slate-400" />
+        <span className="typing-dot h-2 w-2 rounded-full bg-slate-400" />
+        <span className="typing-dot h-2 w-2 rounded-full bg-slate-400" />
+      </div>
     </div>
   );
 }

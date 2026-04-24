@@ -267,6 +267,41 @@ const dictionary = {
         region: "Region",
       },
     },
+    adminLogin: {
+      eyebrow: "Admin Access",
+      title: "Sign in to the internal review workspace.",
+      description:
+        "Only the management side requires credentials. The user-facing support flow stays open and anonymous.",
+      formEyebrow: "Secure entry",
+      formTitle: "Admin login",
+      formDescription:
+        "Use the production admin credentials configured in Vercel to access content review, risk queues, and resource editing.",
+      usernameLabel: "Username",
+      passwordLabel: "Password",
+      submit: "Continue to admin",
+      backToSite: "Back to the public site",
+      logout: "Sign out",
+      missingConfig:
+        "Admin credentials are not configured yet. Set ADMIN_BASIC_AUTH_USER and ADMIN_BASIC_AUTH_PASSWORD before using the management console.",
+      invalidCredentials: "That username or password was not recognized.",
+      loggedOut: "You have been signed out of the admin console.",
+      supportCopy:
+        "This login gate only protects internal operations. Regular users can still access onboarding, chat, mood tracking, skills, and crisis help without signing in.",
+      highlights: [
+        {
+          title: "Protected",
+          description: "Content, risk review, and crisis-resource editing stay behind admin authentication.",
+        },
+        {
+          title: "Open",
+          description: "Public-facing support routes remain available without creating an account.",
+        },
+        {
+          title: "Scoped",
+          description: "Admin session cookies are limited to this site and expire automatically.",
+        },
+      ],
+    },
   },
   zh: {
     languageName: "中文",
@@ -518,6 +553,41 @@ const dictionary = {
         website: "网站",
         region: "地区",
       },
+    },
+    adminLogin: {
+      eyebrow: "管理端访问",
+      title: "登录内部管理工作区。",
+      description:
+        "只有管理端需要凭据。面向用户的支持流程仍然保持开放且匿名可用。",
+      formEyebrow: "安全入口",
+      formTitle: "后台登录",
+      formDescription:
+        "请输入在 Vercel 生产环境中配置的管理员账号，用于访问内容审核、风险复核和资源编辑。",
+      usernameLabel: "用户名",
+      passwordLabel: "密码",
+      submit: "进入管理端",
+      backToSite: "返回用户端站点",
+      logout: "退出登录",
+      missingConfig:
+        "管理员凭据还没有配置。请先设置 ADMIN_BASIC_AUTH_USER 和 ADMIN_BASIC_AUTH_PASSWORD，再使用管理控制台。",
+      invalidCredentials: "用户名或密码不正确。",
+      loggedOut: "你已经退出管理端登录。",
+      supportCopy:
+        "这个登录门槛只保护内部管理操作。普通用户仍然可以直接访问引导、聊天、情绪记录、练习库和危机求助页面，无需登录。",
+      highlights: [
+        {
+          title: "受保护",
+          description: "内容审核、风险复核和危机资源编辑都需要管理员登录后才能访问。",
+        },
+        {
+          title: "开放",
+          description: "面向用户的支持页面保持免登录访问，不增加使用门槛。",
+        },
+        {
+          title: "有限期",
+          description: "管理员会话通过站点 cookie 保存，并会自动过期。",
+        },
+      ],
     },
   },
 } as const;

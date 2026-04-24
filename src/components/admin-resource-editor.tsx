@@ -43,7 +43,6 @@ export function AdminResourceEditor({
       title={copy.title}
       description={copy.description}
       badge={locale === "zh" ? "保存于失焦时自动触发" : "Saves on field blur"}
-      className="bg-[linear-gradient(180deg,_#ffffff_0%,_#f5fafc_100%)]"
     >
       <div className="mb-5 grid gap-3 md:grid-cols-3">
         <MetricCard
@@ -67,7 +66,7 @@ export function AdminResourceEditor({
         {resources.map((resource) => (
           <div
             key={resource.id}
-            className="rounded-[26px] border border-[#dbe7ec] bg-white/95 p-5 shadow-[0_14px_36px_rgba(58,56,70,0.04)]"
+            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
           >
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -129,7 +128,7 @@ function EditableField({
       <input
         defaultValue={value}
         onBlur={(event) => onSave(event.target.value)}
-        className="w-full rounded-2xl border border-[#e5dbcf] bg-[#fffdf9] px-4 py-3 outline-none transition focus:border-[#7da4b5] focus:bg-white"
+        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100"
       />
     </label>
   );
@@ -145,15 +144,15 @@ function MetricCard({
   tone: "warm" | "cool" | "ink";
 }) {
   const toneClasses = {
-    warm: "border-[#efddcf] bg-[linear-gradient(180deg,_#fff7ef_0%,_#ffffff_100%)]",
-    cool: "border-[#d7e7ed] bg-[linear-gradient(180deg,_#f2fafc_0%,_#ffffff_100%)]",
-    ink: "border-[#dbe2e8] bg-[linear-gradient(180deg,_#f7f9fb_0%,_#ffffff_100%)]",
+    warm: "border-red-100 bg-red-50",
+    cool: "border-cyan-100 bg-cyan-50",
+    ink: "border-slate-200 bg-slate-50",
   };
 
   return (
-    <div className={`rounded-[24px] border px-4 py-4 ${toneClasses[tone]}`}>
-      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</div>
-      <div className="mt-2 section-title text-3xl text-slate-950">{value}</div>
+    <div className={`rounded-3xl border px-4 py-4 ${toneClasses[tone]}`}>
+      <div className="text-xs font-semibold uppercase text-slate-500">{label}</div>
+      <div className="mt-2 text-3xl font-semibold text-slate-950">{value}</div>
     </div>
   );
 }
